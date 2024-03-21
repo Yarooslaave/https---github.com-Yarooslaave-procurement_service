@@ -1,0 +1,13 @@
+<h1>Список продуктов</h1>
+<ul>
+  {{#each products}}
+    <li>
+      <h2>{{this.name}}</h2>
+      <p>Количество: {{this.quantity}}</p>
+      <p>Ссылка: {{this.url}}</p>
+      <p>Желаемый срок: {{this.desirable_deadline}}</p>
+      <p>Автор: {{this.author}}</p>
+      <p>Статус: {{this.Status}}</p>
+    </li>
+  {{/each}}
+</ul>

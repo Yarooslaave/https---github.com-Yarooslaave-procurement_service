@@ -1,0 +1,11 @@
+
+    <h1>Регистрация</h1>
+    {{#if error}}
+        <p style="color: red;">{{error}}</p>
+    {{/if}}
+    <form method="post" action="/register">
+        <input type="text" name="username" placeholder="Логин" required>
+        <input type="password" name="password" placeholder="Пароль" required>
+        <input type="email" name="email" placeholder="Email" required>
+        <button type="submit">Зарегестрироваться</button>
+    </form>
