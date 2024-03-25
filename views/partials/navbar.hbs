@@ -1,16 +1,28 @@
 <header class="p-3 text-bg-dark">
     <div class="container">
       <div class="d-flex flex-wrap align-items-center justify-content-center justify-content-lg-start">
-        <ul class="nav col-12 col-lg-auto me-lg-auto mb-2 justify-content-center mb-md-0">
-          <li><a href="/" class="nav-link px-2 text-secondary">Home</a></li>
-              <li><a href="/products" class="nav-link px-2 text-white">Мои заказы</a></li>
-              <li><a href="/order-user" class="nav-link px-2 text-white">Заказать</a></li>
-        </ul>
-        <div class="text-end">
-            <a href="/logout" class="btn btn-outline-light me-2">Выйти</a>
-            <a href="/login" class="btn btn-outline-light me-2">Войти</a>
-            <a href="/register" class="btn btn-outline-light me-2">Регистрация</a>
-        </div>
+    <ul class="nav col-12 col-lg-auto me-lg-auto mb-2 justify-content-center mb-md-0">
+    {{#if loggedIn}}
+        <li><a href="/products" class="nav-link px-2 text-white">Мои заказы</a></li>
+        
+        <li><a href="/order" class="nav-link px-2 text-white">Заказать</a></li>
+        {{#ifAdmin role}}
+            <li><a href="/order_admin" class="nav-link px-2 text-white">Заказы</a></li>
+        {{/ifAdmin}}
+    {{/if}}
+</ul>
+</ul>
+
+ <div class="text-end">
+    {{#if loggedIn}}
+        <a href="/logout" class="btn btn-outline-light me-2">Выйти</a>
+        
+        <span class="btn btn-outline-light me-2">{{username}}</span>
+    {{else}}
+        <a href="/login" class="btn btn-outline-light me-2">Войти</a>
+        <a href="/register" class="btn btn-outline-light me-2">Регистрация</a>
+    {{/if}}
+</div>
       </div>
     </div>
   </header>

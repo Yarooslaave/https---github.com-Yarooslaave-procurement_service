@@ -2,7 +2,7 @@
     {{#if error}}
         <p style="color: red;">{{error}}</p>
     {{/if}}
-    <form method="get" action="/login">
+    <form method="post" action="/login">
         <input type="text" name="username" placeholder="Логин" required>
         <input type="password" name="password" placeholder="Пароль" required>
         <button type="submit">Войти</button>
