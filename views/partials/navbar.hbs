@@ -2,14 +2,18 @@
     <div class="container">
       <div class="d-flex flex-wrap align-items-center justify-content-center justify-content-lg-start">
     <ul class="nav col-12 col-lg-auto me-lg-auto mb-2 justify-content-center mb-md-0">
+        <li><a href="/" class="nav-link px-2 text-secondary">Home</a></li>
     {{#if loggedIn}}
+     {{#unless role}}
         <li><a href="/products" class="nav-link px-2 text-white">Мои заказы</a></li>
         
         <li><a href="/order" class="nav-link px-2 text-white">Заказать</a></li>
-        {{#ifAdmin role}}
-            <li><a href="/order_admin" class="nav-link px-2 text-white">Заказы</a></li>
-        {{/ifAdmin}}
+        {{/unless}}
+
     {{/if}}
+    {{#if role}}
+            <li><a href="/order_admin" class="nav-link px-2 text-white">Заказы</a></li>
+        {{/if}}
 </ul>
 </ul>
 

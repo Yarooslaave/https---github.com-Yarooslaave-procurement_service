@@ -8,19 +8,27 @@ const exphbs = require('express-handlebars');
 const bcrypt = require('bcryptjs');
 const morgan = require('morgan');
 const Handlebars = require('handlebars');
+const moment = require('moment');
 
 const port = process.env.PORT || 3000;
 
 const app = express();
-
+let id = null;
 Handlebars.registerHelper('ifAdmin', function(role, options) {
-  if(role === '1') {
+  if(role == '1') {
     return options.fn(this);
   } else {
     return options.inverse(this);
   }
 });
 
+Handlebars.registerHelper('date', function(value) {
+    return moment(value).format('DD/MM/YY');
+});
+
+Handlebars.registerHelper('eq', function(a, b) {
+    return a === b;
+  });
 
 app.use(morgan('combined'));
 
@@ -59,9 +67,16 @@ app.use(session({
 app.set('views', path.join(__dirname, 'views')); 
 app.use(express.urlencoded({ extended: false }));
 
+
 app.get('/', (req, res) => {
-    res.redirect('/login');
+    res.render('index', {
+      loggedIn: req.session.loggedIn, 
+      username: req.session.username, 
+      role: req.session.role 
+    });
 });
+
+
 
 app.get('/register', (req, res) => {
     res.render('register');
@@ -89,44 +104,52 @@ app.post('/register', [
     });
 });
 
-app.get('/products', (req, res) => {
+app.get('/products', async (req, res) => {
+    if (!req.session.loggedIn) {
+        res.redirect('/login');
+    } else {
+        const sql = 'SELECT * FROM products WHERE userid = ?';
+        db.query(sql, [id], (err, results) => {
+            if (err) throw err;
+            console.log(id)
+            res.render('products', { 
+                products: results, 
+                loggedIn: req.session.loggedIn, 
+                username: req.session.username, 
+                role: req.session.role 
+            });
+        });
+    }
+});
+app.get('/order_admin', (req, res) => {
     if (!req.session.loggedIn) {
         res.redirect('/login');
     } else {
         const sql = 'SELECT * FROM products';
+        
         db.query(sql, (err, results) => {
             if (err) throw err;
-            res.render('products', { products: results, loggedIn: req.session.loggedIn, username: req.session.username });
+            res.render('order_admin', { 
+                order_admin: results, 
+                loggedIn: req.session.loggedIn, 
+                username: req.session.username, 
+                role: req.session.role 
+            });
+            
         });
     }
 });
 
-app.get('/products/:id/status', (req, res) => {
-    if (req.session.role !== '1') {
-        return res.status(403).send('У вас нет прав для выполнения этого действия');
-    }
-
-    const { id } = req.params;
-    const sql = 'SELECT * FROM products WHERE id = ?';
-    db.query(sql, [id], (err, results) => {
-        if (err) throw err;
-        res.render('status', { product: results[0] });
-    });
-});
-
-app.post('/products/:id/status', (req, res) => {
-    if (req.session.role !== '1') {
-        return res.status(403).send('У вас нет прав для выполнения этого действия');
-    }
-
-    const { status } = req.body;
-    const { id } = req.params;
+app.post('/update_status', (req, res) => {
+    const { id, status } = req.body;
     const sql = 'UPDATE products SET Status = ? WHERE id = ?';
+    
     db.query(sql, [status, id], (err, results) => {
         if (err) throw err;
-        res.redirect('/products');
+        res.redirect('/order_admin');
     });
 });
+
 
 app.get('/login', (req, res) => {
     res.render('login'); 
@@ -154,7 +177,8 @@ app.post('/login', [
                     req.session.username = username;
                     req.session.role = results[0].role; // Сохранение в сессии
                     req.session.userId = results[0].id; // Сохраняем id пользователя в сессии
-                    res.redirect('/products');
+                    id = results[0].id
+                    res.redirect('/');
                 } else {
                     res.render('login', { error: 'Неверный логин или пароль' });
                 }
@@ -189,18 +213,21 @@ app.post('/submit_order', (req, res) => {
     const { name, quantity, url, desirable_deadline } = req.body; // name теперь извлекается из req.body
     const author = req.session.username;
     const userId = req.session.userId;
-    const sql = 'INSERT INTO products (name, quantity, url, desirable_deadline, author, Status) VALUES (?, ?, ?, ?, ?, "На рассмотрении")';
-    db.query(sql, [name, quantity, url, desirable_deadline, author], (err, results) => { // Status убран из списка параметров
+    const sql = 'INSERT INTO products (name, quantity, url, desirable_deadline, author, Status, userid) VALUES (?, ?, ?, ?, ?, "На рассмотрении", ?)';
+    db.query(sql, [name, quantity, url, desirable_deadline, author, userId], (err, results) => { // Status убран из списка параметров
         if (err) throw err;
         res.redirect('/products');
     });
 });
 
 app.get('/order_admin', (req, res) => {
-    if (req.session.loggedIn && req.session.role === 1) {
-        res.render('order_admin', { loggedIn: req.session.loggedIn, username: req.session.username, admin: true}); // добавляем admin: true
+    if (req.session.loggedIn && req.session.role == '1') {
+        res.render('order_admin', {                 
+            loggedIn: req.session.loggedIn, 
+            username: req.session.username, 
+            role: req.session.role }); 
     } else {
-        res.redirect('/login'); // перенаправляем на страницу входа
+        res.redirect('/login'); 
     }
 });
 
