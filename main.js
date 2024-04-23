@@ -2,20 +2,20 @@ const express = require('express');
 const session = require('express-session');
 const MySQLStore = require('express-mysql-session')(session);
 const { body, validationResult } = require('express-validator');
-const mysql = require('mysql2');
 const path = require('path'); 
 const exphbs = require('express-handlebars');
 const bcrypt = require('bcryptjs');
 const morgan = require('morgan');
 const Handlebars = require('handlebars');
 const moment = require('moment');
+const db = require('./vendor/db.js');
 
 const port = process.env.PORT || 3000;
 
 const app = express();
 let id = null;
 Handlebars.registerHelper('ifAdmin', function(role, options) {
-  if(role == '1') {
+  if(role == 1) {
     return options.fn(this);
   } else {
     return options.inverse(this);
@@ -41,18 +41,6 @@ app.engine('hbs', hbs.engine);
 app.set('view engine', 'hbs');
 app.set('views', 'views');
 
-const db = mysql.createConnection({
-    host: '127.0.0.1',
-    user: 'root',
-    password: '',
-    database: 'procurement_service'
-});
-
-db.connect((err) => {
-    if (err) throw err;
-    console.log('Connected to MySQL database');
-});
-
 const sessionStore = new MySQLStore({}, db.promise());
 
 app.use(session({
@@ -76,8 +64,6 @@ app.get('/', (req, res) => {
     });
 });
 
-
-
 app.get('/register', (req, res) => {
     res.render('register');
 });
@@ -94,13 +80,9 @@ app.post('/register', [
 
     const { username, password, email } = req.body;
 
-    bcrypt.hash(password, 10, function(err, hash) {
-        const sql = 'INSERT INTO users (username, password, email) VALUES (?, ?, ?)';
-        db.query(sql, [username, hash, email], (err, results) => {
-            if (err) throw err;
-
-            res.redirect('/register');
-        });
+    db.registerUser(username, password, email, (err, results) => {
+        if (err) throw err;
+        res.redirect('/register');
     });
 });
 
@@ -108,10 +90,8 @@ app.get('/products', async (req, res) => {
     if (!req.session.loggedIn) {
         res.redirect('/login');
     } else {
-        const sql = 'SELECT * FROM products WHERE userid = ?';
-        db.query(sql, [id], (err, results) => {
+        db.getProducts(id, (err, results) => {
             if (err) throw err;
-            console.log(id)
             res.render('products', { 
                 products: results, 
                 loggedIn: req.session.loggedIn, 
@@ -121,13 +101,12 @@ app.get('/products', async (req, res) => {
         });
     }
 });
+
 app.get('/order_admin', (req, res) => {
     if (!req.session.loggedIn) {
         res.redirect('/login');
     } else {
-        const sql = 'SELECT * FROM products';
-        
-        db.query(sql, (err, results) => {
+        db.getOrderAdmin((err, results) => {
             if (err) throw err;
             res.render('order_admin', { 
                 order_admin: results, 
@@ -135,21 +114,18 @@ app.get('/order_admin', (req, res) => {
                 username: req.session.username, 
                 role: req.session.role 
             });
-            
         });
     }
 });
 
 app.post('/update_status', (req, res) => {
     const { id, status } = req.body;
-    const sql = 'UPDATE products SET Status = ? WHERE id = ?';
     
-    db.query(sql, [status, id], (err, results) => {
+    db.updateStatus(id, status, (err, results) => {
         if (err) throw err;
         res.redirect('/order_admin');
     });
 });
-
 
 app.get('/login', (req, res) => {
     res.render('login'); 
@@ -166,74 +142,70 @@ app.post('/login', [
 
     const { username, password } = req.body;
 
-    const sql = 'SELECT * FROM users WHERE username = ?';
-    db.query(sql, [username], (err, results) => {
-        if (err) throw err;
-
-        if (results.length > 0) {
-            bcrypt.compare(password, results[0].password, function(err, result) {
-                if(result == true) {
-                    req.session.loggedIn = true;
-                    req.session.username = username;
-                    req.session.role = results[0].role; // Сохранение в сессии
-                    req.session.userId = results[0].id; // Сохраняем id пользователя в сессии
-                    id = results[0].id
-                    res.redirect('/');
-                } else {
-                    res.render('login', { error: 'Неверный логин или пароль' });
-                }
-            });
-        } else {
+    db.login(username, password, (err, user) => {
+        if (err) {
             res.render('login', { error: 'Неверный логин или пароль' });
+        } else {
+            req.session.loggedIn = true;
+            req.session.username = username;
+            req.session.role = user.role; // Сохранение в сессии
+            req.session.userId = user.id; // Сохраняем id пользователя в сессии
+            id = user.id
+
+            // Проверка роли пользователя и перенаправление на соответствующую страницу
+            if (user.role == 1) {
+                res.redirect('/order_admin');
+            } else if (user.role == 0) {
+                res.redirect('/products');
+            } else {
+                res.redirect('/');
+            }
         }
     });
 });
 
+
 app.get('/logout', (req, res) => {
-    req.session.destroy(err => {
-      if (err) {
-        return res.redirect('/');
-      }
+    db.logout(req, (err) => {
+        if (err) {
+            return res.redirect('/');
+        }
     
-      res.clearCookie('connect.sid');
-      res.redirect('/login');
+        res.clearCookie('connect.sid');
+        res.redirect('/login');
     });
 });
 
 app.get('/order', (req, res) => {
-    if (req.session.loggedIn) {
-        res.render('order', { loggedIn: req.session.loggedIn, username: req.session.username }); // отображаем страницу заказа
-    } else {
-        res.redirect('/login'); // перенаправляем на страницу входа
-    }
+    db.order(req, (err, data) => {
+        if (err) {
+            res.redirect('/login');
+        } else {
+            res.render('order', data);
+        }
+    });
 });
 
 // Создание заказа
 app.post('/submit_order', (req, res) => {
-    const { name, quantity, url, desirable_deadline } = req.body; // name теперь извлекается из req.body
+    const { name, quantity, url, desirable_deadline } = req.body;
     const author = req.session.username;
     const userId = req.session.userId;
-    const sql = 'INSERT INTO products (name, quantity, url, desirable_deadline, author, Status, userid) VALUES (?, ?, ?, ?, ?, "На рассмотрении", ?)';
-    db.query(sql, [name, quantity, url, desirable_deadline, author, userId], (err, results) => { // Status убран из списка параметров
+    
+    db.submitOrder(name, quantity, url, desirable_deadline, author, userId, (err, results) => {
         if (err) throw err;
         res.redirect('/products');
     });
 });
 
 app.get('/order_admin', (req, res) => {
-    if (req.session.loggedIn && req.session.role == '1') {
-        res.render('order_admin', {                 
-            loggedIn: req.session.loggedIn, 
-            username: req.session.username, 
-            role: req.session.role }); 
-    } else {
-        res.redirect('/login'); 
-    }
-});
-
-app.use((req, res, next) => {
-  console.log(req.session);
-  next();
+    db.orderAdmin(req, (err, data) => {
+        if (err) {
+            res.redirect('/login');
+        } else {
+            res.render('order_admin', data);
+        }
+    });
 });
 
 app.listen (3000, () => {
