@@ -5,7 +5,8 @@ const { body, validationResult } = require('express-validator');
 const path = require('path'); 
 const exphbs = require('express-handlebars');
 const bcrypt = require('bcryptjs');
-const morgan = require('morgan');
+const morgan = require('morgan'); //Логирование
+const rfs = require("rotating-file-stream");
 const Handlebars = require('handlebars');
 const moment = require('moment');
 const db = require('./vendor/db.js');
@@ -30,7 +31,25 @@ Handlebars.registerHelper('eq', function(a, b) {
     return a === b;
   });
 
-app.use(morgan('combined'));
+  //Я использую библиотеку morgan для логирования
+const rfsStream = rfs.createStream("log.txt", {
+    size: '10M', 
+    interval: '1d', 
+    compress: 'gzip' 
+});
+
+app.use(morgan(function (tokens, req, res) {
+  return [
+    '[' + new Date().toISOString() + ']', 
+    tokens.method(req, res),
+    tokens.url(req, res),
+    tokens.status(req, res),
+    tokens.res(req, res, 'content-length'), '-'
+  ].join(' ');
+}, {
+    stream: rfsStream // Записываем логи в файл
+}));
+  
 
 const hbs = exphbs.create({
   defaultLayout: 'main',
